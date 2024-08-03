@@ -75,6 +75,7 @@ jobs:
           RUST_COMPILER_RT_ROOT: ${{ steps.compiler-rt.outputs.path }}
           RUSTC_SRC: ${{ steps.rust-src.outputs.path }}
           RUSTFLAGS: "-C panic=abort -C opt-level=z -C llvm-args=--inline-threshold=225 -C codegen-units=1"
+          IPHONEOS_DEPLOYMENT_TARGET: "14.0"
         run: |
           cd ${RUSTC_SRC}/library/std
           cargo build \
