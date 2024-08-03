@@ -1,0 +1,132 @@
+name: Release stable rust-std
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'The rust version to use e.g. 1.80.0'
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'The rust version to use e.g. 1.80.0'
+        required: true
+        type: string
+jobs:
+  release:
+    permissions:
+      contents: write
+    name: Release stable rust-std
+    runs-on: macos-latest
+    env:
+      VERSION: ${{ inputs.version }}
+
+    steps:
+      - name: Checkout repo for cargo.toml
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: |
+          brew install rustup
+          rustup-init -y --default-toolchain ${VERSION}
+          cp cargo.toml $HOME/.cargo/config.toml
+          source $HOME/.cargo/env
+
+      - name: Install Android NDK
+        run: |
+          ANDROID_NDK_BIN_PATH=$(brew --prefix)/share/android-ndk/toolchains/llvm/prebuilt/darwin-x86_64/bin
+          brew install --cask android-ndk
+          # Link all clangs into the binary cargo looks for
+          ln -s ${ANDROID_NDK_BIN_PATH}/aarch64-linux-android35-clang ${ANDROID_NDK_BIN_PATH}/aarch64-linux-android-clang
+          ln -s ${ANDROID_NDK_BIN_PATH}/armv7a-linux-androideabi35-clang ${ANDROID_NDK_BIN_PATH}/arm-linux-androideabi-clang
+          ln -s ${ANDROID_NDK_BIN_PATH}/i686-linux-android35-clang ${ANDROID_NDK_BIN_PATH}/i686-linux-android-clang
+          ln -s ${ANDROID_NDK_BIN_PATH}/x86_64-linux-android35-clang ${ANDROID_NDK_BIN_PATH}/x86_64-linux-android-clang
+
+          echo "ANDROID_NDK_BIN_PATH=${ANDROID_NDK_BIN_PATH}" >> $GITHUB_ENV
+
+      - name: Download rust stable source code
+        run: |
+          wget -q https://static.rust-lang.org/dist/rustc-${VERSION}-src.tar.xz
+          wget -q https://static.rust-lang.org/dist/rustc-${VERSION}-src.tar.xz.sha256 -O rust-src.tar.xz.sha256
+          cat rust-src.tar.xz.sha256 | shasum --check --status
+
+      - name: Extract rust src
+        id: rust-src
+        run: |
+          tar xzf rustc-${VERSION}-src.tar.xz
+          echo "path=$(realpath rustc-${VERSION}-src)" >> $GITHUB_OUTPUT
+
+      - name: Download LLVM compiler-rt
+        id: compiler-rt
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh release list -R llvm/llvm-project --exclude-pre-releases --exclude-drafts -L 1 --json tagName -q '.[0].tagName')
+          gh release download ${tag} --pattern "compiler-rt*.tar.xz" -R llvm/llvm-project
+          mkdir compiler-rt
+          tar xJf compiler-rt*.tar.xz --strip-components=1 -C compiler-rt
+          echo "path=$(realpath compiler-rt)" >> $GITHUB_OUTPUT
+
+      - name: Build rust std (iOS)
+        env:
+          # Allow using unstable cargo features in the standard library.
+          RUSTC_BOOTSTRAP: 1
+          # This is required by compiler-builtins
+          RUST_COMPILER_RT_ROOT: ${{ steps.compiler-rt.outputs.path }}
+          RUSTC_SRC: ${{ steps.rust-src.outputs.path }}
+          RUSTFLAGS: "-C panic=abort -C opt-level=z -C llvm-args=--inline-threshold=225 -C codegen-units=1"
+        run: |
+          cd ${RUSTC_SRC}/library/std
+          cargo build \
+            --release \
+            --features "panic_immediate_abort,optimize_for_size,compiler-builtins-c" \
+            --target aarch64-apple-ios \
+            --target aarch64-apple-ios-sim \
+            --target x86_64-apple-ios \
+
+      - name: Build rust std (Android)
+        env:
+          RUSTC_BOOTSTRAP: 1
+          RUST_COMPILER_RT_ROOT: ${{ steps.compiler-rt.outputs.path }}
+          RUSTC_SRC: ${{ steps.rust-src.outputs.path }}
+          RUSTFLAGS: "-C panic=abort -C opt-level=z -C llvm-args=--inline-threshold=225 -C codegen-units=1"
+        run: |
+          cd ${RUSTC_SRC}/library/std
+          # Set the path pointing to the NDK where all the cross-compiling clang binaries exist
+          export PATH="${ANDROID_NDK_BIN_PATH}:${PATH}"
+          cargo build \
+            --release \
+            --features "panic_immediate_abort,optimize_for_size,compiler-builtins-c" \
+            --target aarch64-linux-android \
+            --target armv7-linux-androideabi \
+            --target i686-linux-android \
+            --target x86_64-linux-android
+
+      - name: Create rust std tarball
+        id: tarball
+        env:
+          RUSTC_SRC: ${{steps.rust-src.outputs.path}}
+        run: |
+          ARCHES="aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android"
+          mkdir -p tarballs
+          cd tarballs
+          for ARCH in $ARCHES; do
+            mkdir -p rust-std-${VERSION}-${ARCH}/rust-std-${ARCH}/lib/rustlib/${ARCH}/lib
+            rustc -V | sed -e 's/rustc //' > rust-std-${VERSION}-${ARCH}/version
+
+            cp ${RUSTC_SRC}/target/${ARCH}/release/deps/*.rlib rust-std-${VERSION}-${ARCH}/rust-std-${ARCH}/lib/rustlib/${ARCH}/lib
+            tar -czf rust-std-${VERSION}-${ARCH}.tar.gz rust-std-${VERSION}-${ARCH}
+            shasum -a 256 rust-std-${VERSION}-${ARCH}.tar.gz > rust-std-${VERSION}-${ARCH}.tar.gz.sha256
+          done
+          echo "path=$(realpath .)" >> $GITHUB_OUTPUT
+
+      - name: Create github release with tarballs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARBALLS_PATH: ${{ steps.tarball.outputs.path }}
+        run: |
+          gh release create "$VERSION" \
+            --target "$GITHUB_REF_NAME" \
+            --notes "Rust stable v${VERSION}" \
+            ${TARBALLS_PATH}/*.tar.gz \
+            ${TARBALLS_PATH}/*.tar.gz.sha256
