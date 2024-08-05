@@ -80,7 +80,7 @@ jobs:
           cd ${RUSTC_SRC}/library/std
           cargo build \
             --release \
-            --features "panic_immediate_abort,optimize_for_size,compiler-builtins-c" \
+            --features "panic_immediate_abort,optimize_for_size" \
             --target aarch64-apple-ios \
             --target aarch64-apple-ios-sim \
             --target x86_64-apple-ios \
@@ -97,7 +97,7 @@ jobs:
           export PATH="${ANDROID_NDK_BIN_PATH}:${PATH}"
           cargo build \
             --release \
-            --features "panic_immediate_abort,optimize_for_size,compiler-builtins-c" \
+            --features "panic_immediate_abort,optimize_for_size" \
             --target aarch64-linux-android \
             --target armv7-linux-androideabi \
             --target i686-linux-android \
