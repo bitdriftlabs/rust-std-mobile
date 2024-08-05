@@ -56,23 +56,11 @@ jobs:
           tar xzf rustc-${VERSION}-src.tar.xz
           echo "path=$(realpath rustc-${VERSION}-src)" >> $GITHUB_OUTPUT
 
-      - name: Download LLVM compiler-rt
-        id: compiler-rt
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          tag=$(gh release list -R llvm/llvm-project --exclude-pre-releases --exclude-drafts -L 1 --json tagName -q '.[0].tagName')
-          gh release download ${tag} --pattern "compiler-rt*.tar.xz" -R llvm/llvm-project
-          mkdir compiler-rt
-          tar xJf compiler-rt*.tar.xz --strip-components=1 -C compiler-rt
-          echo "path=$(realpath compiler-rt)" >> $GITHUB_OUTPUT
-
       - name: Build rust std (iOS)
         env:
           # Allow using unstable cargo features in the standard library.
           RUSTC_BOOTSTRAP: 1
           # This is required by compiler-builtins
-          RUST_COMPILER_RT_ROOT: ${{ steps.compiler-rt.outputs.path }}
           RUSTC_SRC: ${{ steps.rust-src.outputs.path }}
           RUSTFLAGS: "-C panic=abort -C opt-level=z -C llvm-args=--inline-threshold=225 -C codegen-units=1"
           IPHONEOS_DEPLOYMENT_TARGET: "14.0"
@@ -88,7 +76,6 @@ jobs:
       - name: Build rust std (Android)
         env:
           RUSTC_BOOTSTRAP: 1
-          RUST_COMPILER_RT_ROOT: ${{ steps.compiler-rt.outputs.path }}
           RUSTC_SRC: ${{ steps.rust-src.outputs.path }}
           RUSTFLAGS: "-C panic=abort -C opt-level=z -C llvm-args=--inline-threshold=225 -C codegen-units=1"
         run: |
