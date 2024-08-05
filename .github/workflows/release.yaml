@@ -54,6 +54,8 @@ jobs:
         id: rust-src
         run: |
           tar xzf rustc-${VERSION}-src.tar.xz
+          # We don't need to compile dylibs here, only rlibs
+          sed -i -e 's/crate-type = \["dylib", "rlib"\]/create-type = \["rlib"\]/' rustc-${VERSION}-src/library/std/Cargo.toml
           echo "path=$(realpath rustc-${VERSION}-src)" >> $GITHUB_OUTPUT
 
       - name: Build rust std (iOS)
@@ -62,7 +64,7 @@ jobs:
           RUSTC_BOOTSTRAP: 1
           # This is required by compiler-builtins
           RUSTC_SRC: ${{ steps.rust-src.outputs.path }}
-          RUSTFLAGS: "-C panic=abort -C opt-level=z -C llvm-args=--inline-threshold=225 -C codegen-units=1"
+          RUSTFLAGS: "-C panic=abort -C opt-level=s -C llvm-args=--inline-threshold=225 -C codegen-units=1"
           IPHONEOS_DEPLOYMENT_TARGET: "14.0"
         run: |
           cd ${RUSTC_SRC}/library/std
@@ -77,7 +79,7 @@ jobs:
         env:
           RUSTC_BOOTSTRAP: 1
           RUSTC_SRC: ${{ steps.rust-src.outputs.path }}
-          RUSTFLAGS: "-C panic=abort -C opt-level=z -C llvm-args=--inline-threshold=225 -C codegen-units=1"
+          RUSTFLAGS: "-C panic=abort -C opt-level=s -C llvm-args=--inline-threshold=225 -C codegen-units=1"
         run: |
           cd ${RUSTC_SRC}/library/std
           # Set the path pointing to the NDK where all the cross-compiling clang binaries exist
