@@ -104,7 +104,7 @@ jobs:
             mkdir -p rust-std-${VERSION}-${ARCH}/rust-std-${ARCH}/lib/rustlib/${ARCH}/lib
             rustc -V | sed -e 's/rustc //' > rust-std-${VERSION}-${ARCH}/version
 
-            cp ${RUSTC_SRC}/target/${ARCH}/release/deps/*.rlib rust-std-${VERSION}-${ARCH}/rust-std-${ARCH}/lib/rustlib/${ARCH}/lib
+            cp ${RUSTC_SRC}/library/target/${ARCH}/release/deps/*.rlib rust-std-${VERSION}-${ARCH}/rust-std-${ARCH}/lib/rustlib/${ARCH}/lib
             tar -czf rust-std-${VERSION}-${ARCH}.tar.gz rust-std-${VERSION}-${ARCH}
             shasum -a 256 rust-std-${VERSION}-${ARCH}.tar.gz > rust-std-${VERSION}-${ARCH}.tar.gz.sha256
           done
