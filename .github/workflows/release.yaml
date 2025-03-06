@@ -68,6 +68,7 @@ jobs:
           IPHONEOS_DEPLOYMENT_TARGET: "14.0"
         run: |
           cd ${RUSTC_SRC}/library/std
+          export RUSTFLAGS="-Zforce-unstable-if-unmarked"
           cargo build \
             --release \
             --features "panic_immediate_abort,optimize_for_size" \
@@ -84,6 +85,7 @@ jobs:
           cd ${RUSTC_SRC}/library/std
           # Set the path pointing to the NDK where all the cross-compiling clang binaries exist
           export PATH="${ANDROID_NDK_BIN_PATH}:${PATH}"
+          export RUSTFLAGS="-Zforce-unstable-if-unmarked"
           cargo build \
             --release \
             --features "panic_immediate_abort,optimize_for_size" \
