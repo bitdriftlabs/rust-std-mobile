@@ -63,7 +63,7 @@ jobs:
           RUSTC_BOOTSTRAP: 1
           # This is required by compiler-builtins
           RUSTC_SRC: ${{ steps.rust-src.outputs.path }}
-          RUSTFLAGS: "-C panic=abort -C opt-level=s -C llvm-args=--inline-threshold=225 -C codegen-units=1 -Zlocation-detail=none -Zforce-unstable-if-unmarked"
+          RUSTFLAGS: "-C panic=abort -C opt-level=s -Clto=fat -Cembed-bitcode -C llvm-args=--inline-threshold=225 -C codegen-units=1 -Zlocation-detail=none -Zforce-unstable-if-unmarked"
           IPHONEOS_DEPLOYMENT_TARGET: "14.0"
         run: |
           cd ${RUSTC_SRC}/library/std
@@ -78,7 +78,7 @@ jobs:
         env:
           RUSTC_BOOTSTRAP: 1
           RUSTC_SRC: ${{ steps.rust-src.outputs.path }}
-          RUSTFLAGS: "-C panic=abort -C opt-level=s -C llvm-args=--inline-threshold=225 -C codegen-units=1 -Zlocation-detail=none -Zforce-unstable-if-unmarked"
+          RUSTFLAGS: "-C panic=abort -C opt-level=s -Clto=fat -Cembed-bitcode -C llvm-args=--inline-threshold=225 -C codegen-units=1 -Zlocation-detail=none -Zforce-unstable-if-unmarked"
         run: |
           cd ${RUSTC_SRC}/library/std
           # Set the path pointing to the NDK where all the cross-compiling clang binaries exist
