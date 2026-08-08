@@ -28,8 +28,9 @@ jobs:
       - name: Install Rust
         run: |
           brew install rustup
-          "$(brew --prefix rustup)/bin/rustup" default "${VERSION}"
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          RUSTUP_BIN="$(brew --prefix rustup)/bin/rustup"
+          "$RUSTUP_BIN" default "${VERSION}"
+          dirname "$("$RUSTUP_BIN" which cargo)" >> "$GITHUB_PATH"
 
       - name: Install Android NDK
         run: |
