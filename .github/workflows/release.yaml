@@ -28,8 +28,8 @@ jobs:
       - name: Install Rust
         run: |
           brew install rustup
-          rustup-init -y --default-toolchain ${VERSION}
-          source $HOME/.cargo/env
+          "$(brew --prefix rustup)/bin/rustup" default "${VERSION}"
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
       - name: Install Android NDK
         run: |
