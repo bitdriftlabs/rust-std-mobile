@@ -53,9 +53,9 @@ jobs:
       - name: Extract rust src
         id: rust-src
         run: |
-          tar xzf rustc-${VERSION}-src.tar.xz
+          tar -xf rustc-${VERSION}-src.tar.xz
           # We don't need to compile dylibs here, only rlibs
-          sed -i -e 's/crate-type = \["dylib", "rlib"\]/create-type = \["rlib"\]/' rustc-${VERSION}-src/library/std/Cargo.toml
+          sed -i -e 's/crate-type = \["dylib", "rlib"\]/crate-type = \["rlib"\]/' rustc-${VERSION}-src/library/std/Cargo.toml
           echo "path=$(realpath rustc-${VERSION}-src)" >> $GITHUB_OUTPUT
 
       - name: Build rust std (iOS)
