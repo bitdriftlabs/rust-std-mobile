@@ -75,6 +75,28 @@ jobs:
             --target aarch64-apple-ios-sim \
             --target x86_64-apple-ios \
 
+      - name: Build rust std (iOS TSan)
+        env:
+          # Allow using unstable cargo features in the standard library.
+          RUSTC_BOOTSTRAP: 1
+          # This is required by compiler-builtins.
+          RUSTC_SRC: ${{ steps.rust-src.outputs.path }}
+          # Keep this sysroot ABI-compatible with Rust crates compiled with
+          # -Zsanitizer=thread. The final iOS Simulator bundle supplies the
+          # TSan runtime through Xcode's linker. Unlike release sysroots,
+          # optimize only to O1 and avoid LTO to preserve useful race reports.
+          RUSTFLAGS: "-C panic=immediate-abort -C opt-level=1 -Zunstable-options -Zlocation-detail=none -Zforce-unstable-if-unmarked -Zsanitizer=thread -Zexternal-clangrt"
+          # The normal and TSan stdlib builds use the same Rust target triple.
+          # Separate target directories preserve both variants for packaging.
+          CARGO_TARGET_DIR: ${{ steps.rust-src.outputs.path }}/library/target-tsan
+          IPHONEOS_DEPLOYMENT_TARGET: "14.0"
+        run: |
+          cd ${RUSTC_SRC}/library/std
+          cargo build \
+            --release \
+            --features "optimize_for_size" \
+            --target aarch64-apple-ios-sim
+
       - name: Build rust std (Android)
         env:
           RUSTC_BOOTSTRAP: 1
@@ -108,6 +130,16 @@ jobs:
             tar -czf rust-std-${VERSION}-${ARCH}.tar.gz rust-std-${VERSION}-${ARCH}
             shasum -a 256 rust-std-${VERSION}-${ARCH}.tar.gz > rust-std-${VERSION}-${ARCH}.tar.gz.sha256
           done
+
+          TSAN_ARCHES="aarch64-apple-ios-sim"
+          for ARCH in $TSAN_ARCHES; do
+            mkdir -p rust-std-tsan-${VERSION}-${ARCH}/rust-std-${ARCH}/lib/rustlib/${ARCH}/lib
+            rustc -V | sed -e 's/rustc //' > rust-std-tsan-${VERSION}-${ARCH}/version
+
+            cp ${RUSTC_SRC}/library/target-tsan/${ARCH}/release/deps/*.rlib rust-std-tsan-${VERSION}-${ARCH}/rust-std-${ARCH}/lib/rustlib/${ARCH}/lib
+            tar -czf rust-std-tsan-${VERSION}-${ARCH}.tar.gz rust-std-tsan-${VERSION}-${ARCH}
+            shasum -a 256 rust-std-tsan-${VERSION}-${ARCH}.tar.gz > rust-std-tsan-${VERSION}-${ARCH}.tar.gz.sha256
+          done
           echo "path=$(realpath .)" >> $GITHUB_OUTPUT
 
       - name: Create github release with tarballs
@@ -115,8 +147,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TARBALLS_PATH: ${{ steps.tarball.outputs.path }}
         run: |
-          gh release create "$VERSION" \
-            --target "$GITHUB_REF_NAME" \
-            --notes "Rust stable v${VERSION}" \
-            ${TARBALLS_PATH}/*.tar.gz \
-            ${TARBALLS_PATH}/*.tar.gz.sha256
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            gh release upload "$VERSION" --clobber \
+              ${TARBALLS_PATH}/*.tar.gz \
+              ${TARBALLS_PATH}/*.tar.gz.sha256
+          else
+            gh release create "$VERSION" \
+              --target "$GITHUB_REF_NAME" \
+              --notes "Rust stable v${VERSION}" \
+              ${TARBALLS_PATH}/*.tar.gz \
+              ${TARBALLS_PATH}/*.tar.gz.sha256
+          fi

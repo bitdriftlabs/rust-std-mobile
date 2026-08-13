@@ -2,6 +2,11 @@
 
 This repository publishes unofficial releases compiled with the minimum needed to use rust on mobile. These builds are based off point rust releases.
 
+Each release includes the standard mobile sysroots and a separate
+`rust-std-tsan-<version>-aarch64-apple-ios-sim.tar.gz` sysroot. The TSan sysroot
+must be used only with Rust crates compiled with `-Zsanitizer=thread` and an iOS
+Simulator test bundle linked with Xcode Thread Sanitizer enabled.
+
 ## License
 
 Rust is primarily distributed under the terms of both the MIT license and the
