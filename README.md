@@ -7,6 +7,9 @@ Each release includes the standard mobile sysroots and a separate
 must be used only with Rust crates compiled with `-Zsanitizer=thread` and an iOS
 Simulator test bundle linked with Xcode Thread Sanitizer enabled.
 
+The release workflow locates libraries using Cargo's JSON artifact messages rather
+than its internal build directory layout, which changed in Rust 1.100.
+
 ## License
 
 Rust is primarily distributed under the terms of both the MIT license and the
