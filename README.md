@@ -9,6 +9,7 @@ Simulator test bundle linked with Xcode Thread Sanitizer enabled.
 
 The release workflow locates libraries using Cargo's JSON artifact messages rather
 than its internal build directory layout, which changed in Rust 1.100.
+Host-side build dependencies are excluded from the mobile sysroots.
 
 ## License
 

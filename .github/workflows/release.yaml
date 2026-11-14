@@ -124,12 +124,14 @@ jobs:
           copy_rlibs() {
             local RLIBS
             # Cargo 1.100 changed its internal layout; use the reported artifact paths.
-            RLIBS=$(jq -ers '
-              [.[] | select(.reason == "compiler-artifact") | .filenames[] | select(endswith(".rlib"))]
-              | if length == 0 then error("no rlib artifacts found") else .[] end
+            # Host build dependencies are outside the requested target's output tree.
+            RLIBS=$(jq -ers --arg target_dir "$2/" '
+              [.[] | select(.reason == "compiler-artifact") | .filenames[]
+                | select(startswith($target_dir) and endswith(".rlib"))]
+              | if length == 0 then error("no target rlib artifacts found") else .[] end
             ' "$1")
             while IFS= read -r RLIB; do
-              cp "$RLIB" "$2"
+              cp "$RLIB" "$3"
             done <<< "$RLIBS"
           }
 
@@ -140,7 +142,7 @@ jobs:
             mkdir -p rust-std-${VERSION}-${ARCH}/rust-std-${ARCH}/lib/rustlib/${ARCH}/lib
             rustc -V | sed -e 's/rustc //' > rust-std-${VERSION}-${ARCH}/version
 
-            copy_rlibs "${RUSTC_SRC}/${ARCH}-artifacts.json" rust-std-${VERSION}-${ARCH}/rust-std-${ARCH}/lib/rustlib/${ARCH}/lib
+            copy_rlibs "${RUSTC_SRC}/${ARCH}-artifacts.json" "${RUSTC_SRC}/library/target/${ARCH}" rust-std-${VERSION}-${ARCH}/rust-std-${ARCH}/lib/rustlib/${ARCH}/lib
             tar -czf rust-std-${VERSION}-${ARCH}.tar.gz rust-std-${VERSION}-${ARCH}
             shasum -a 256 rust-std-${VERSION}-${ARCH}.tar.gz > rust-std-${VERSION}-${ARCH}.tar.gz.sha256
           done
@@ -150,7 +152,7 @@ jobs:
             mkdir -p rust-std-tsan-${VERSION}-${ARCH}/rust-std-${ARCH}/lib/rustlib/${ARCH}/lib
             rustc -V | sed -e 's/rustc //' > rust-std-tsan-${VERSION}-${ARCH}/version
 
-            copy_rlibs "${RUSTC_SRC}/${ARCH}-tsan-artifacts.json" rust-std-tsan-${VERSION}-${ARCH}/rust-std-${ARCH}/lib/rustlib/${ARCH}/lib
+            copy_rlibs "${RUSTC_SRC}/${ARCH}-tsan-artifacts.json" "${RUSTC_SRC}/library/target-tsan/${ARCH}" rust-std-tsan-${VERSION}-${ARCH}/rust-std-${ARCH}/lib/rustlib/${ARCH}/lib
             tar -czf rust-std-tsan-${VERSION}-${ARCH}.tar.gz rust-std-tsan-${VERSION}-${ARCH}
             shasum -a 256 rust-std-tsan-${VERSION}-${ARCH}.tar.gz > rust-std-tsan-${VERSION}-${ARCH}.tar.gz.sha256
           done
