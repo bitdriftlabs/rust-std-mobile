@@ -68,12 +68,13 @@ jobs:
           IPHONEOS_DEPLOYMENT_TARGET: "14.0"
         run: |
           cd ${RUSTC_SRC}/library/std
-          cargo build \
-            --release \
-            --features "optimize_for_size" \
-            --target aarch64-apple-ios \
-            --target aarch64-apple-ios-sim \
-            --target x86_64-apple-ios \
+          for ARCH in aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios; do
+            cargo build \
+              --release \
+              --features "optimize_for_size" \
+              --message-format=json-render-diagnostics \
+              --target "$ARCH" > "${RUSTC_SRC}/${ARCH}-artifacts.json"
+          done
 
       - name: Build rust std (iOS TSan)
         env:
@@ -95,7 +96,8 @@ jobs:
           cargo build \
             --release \
             --features "optimize_for_size" \
-            --target aarch64-apple-ios-sim
+            --message-format=json-render-diagnostics \
+            --target aarch64-apple-ios-sim > "${RUSTC_SRC}/aarch64-apple-ios-sim-tsan-artifacts.json"
 
       - name: Build rust std (Android)
         env:
@@ -106,19 +108,33 @@ jobs:
           cd ${RUSTC_SRC}/library/std
           # Set the path pointing to the NDK where all the cross-compiling clang binaries exist
           export PATH="${ANDROID_NDK_BIN_PATH}:${PATH}"
-          cargo build \
-            --release \
-            --features "optimize_for_size" \
-            --target aarch64-linux-android \
-            --target armv7-linux-androideabi \
-            --target i686-linux-android \
-            --target x86_64-linux-android
+          for ARCH in aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android; do
+            cargo build \
+              --release \
+              --features "optimize_for_size" \
+              --message-format=json-render-diagnostics \
+              --target "$ARCH" > "${RUSTC_SRC}/${ARCH}-artifacts.json"
+          done
 
       - name: Create rust std tarball
         id: tarball
         env:
           RUSTC_SRC: ${{steps.rust-src.outputs.path}}
         run: |
+          copy_rlibs() {
+            local RLIBS
+            # Cargo 1.100 changed its internal layout; use the reported artifact paths.
+            # Host build dependencies are outside the requested target's output tree.
+            RLIBS=$(jq -ers --arg target_dir "$2/" '
+              [.[] | select(.reason == "compiler-artifact") | .filenames[]
+                | select(startswith($target_dir) and endswith(".rlib"))]
+              | if length == 0 then error("no target rlib artifacts found") else .[] end
+            ' "$1")
+            while IFS= read -r RLIB; do
+              cp "$RLIB" "$3"
+            done <<< "$RLIBS"
+          }
+
           ARCHES="aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android"
           mkdir -p tarballs
           cd tarballs
@@ -126,7 +142,7 @@ jobs:
             mkdir -p rust-std-${VERSION}-${ARCH}/rust-std-${ARCH}/lib/rustlib/${ARCH}/lib
             rustc -V | sed -e 's/rustc //' > rust-std-${VERSION}-${ARCH}/version
 
-            cp ${RUSTC_SRC}/library/target/${ARCH}/release/deps/*.rlib rust-std-${VERSION}-${ARCH}/rust-std-${ARCH}/lib/rustlib/${ARCH}/lib
+            copy_rlibs "${RUSTC_SRC}/${ARCH}-artifacts.json" "${RUSTC_SRC}/library/target/${ARCH}" rust-std-${VERSION}-${ARCH}/rust-std-${ARCH}/lib/rustlib/${ARCH}/lib
             tar -czf rust-std-${VERSION}-${ARCH}.tar.gz rust-std-${VERSION}-${ARCH}
             shasum -a 256 rust-std-${VERSION}-${ARCH}.tar.gz > rust-std-${VERSION}-${ARCH}.tar.gz.sha256
           done
@@ -136,7 +152,7 @@ jobs:
             mkdir -p rust-std-tsan-${VERSION}-${ARCH}/rust-std-${ARCH}/lib/rustlib/${ARCH}/lib
             rustc -V | sed -e 's/rustc //' > rust-std-tsan-${VERSION}-${ARCH}/version
 
-            cp ${RUSTC_SRC}/library/target-tsan/${ARCH}/release/deps/*.rlib rust-std-tsan-${VERSION}-${ARCH}/rust-std-${ARCH}/lib/rustlib/${ARCH}/lib
+            copy_rlibs "${RUSTC_SRC}/${ARCH}-tsan-artifacts.json" "${RUSTC_SRC}/library/target-tsan/${ARCH}" rust-std-tsan-${VERSION}-${ARCH}/rust-std-${ARCH}/lib/rustlib/${ARCH}/lib
             tar -czf rust-std-tsan-${VERSION}-${ARCH}.tar.gz rust-std-tsan-${VERSION}-${ARCH}
             shasum -a 256 rust-std-tsan-${VERSION}-${ARCH}.tar.gz > rust-std-tsan-${VERSION}-${ARCH}.tar.gz.sha256
           done
